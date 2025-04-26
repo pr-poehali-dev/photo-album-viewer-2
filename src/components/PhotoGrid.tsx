@@ -10,9 +10,23 @@ interface PhotoGridProps {
 }
 
 export const PhotoGrid = ({ photos, onDeletePhoto, photoGap }: PhotoGridProps) => {
+  const getGapClass = (gap: number) => {
+    const gapMap: Record<number, string> = {
+      0: "gap-0",
+      1: "gap-1",
+      2: "gap-2",
+      3: "gap-3",
+      4: "gap-4",
+      5: "gap-5"
+    };
+    return gapMap[gap] || "gap-2";
+  };
+
   return (
-    <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-${photoGap}`}>
-      <div className="col-span-full grid auto-rows-auto grid-cols-5 gap-2">
+    <div className="w-full">
+      <div 
+        className={`grid grid-cols-5 ${getGapClass(photoGap)} auto-rows-auto`}
+      >
         {photos.map((photo) => {
           // Определяем размер для фото: 10x15 (портрет) и 15x10 (пейзаж)
           const colSpan = photo.orientation === "portrait" ? 1 : 2;

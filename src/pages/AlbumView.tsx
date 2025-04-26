@@ -41,55 +41,81 @@ const AlbumView = () => {
   const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     if (!album || !event.target.files || event.target.files.length === 0) return;
     
-    const file = event.target.files[0];
+    const files = Array.from(event.target.files);
+    let processedFiles = 0;
+    const totalFiles = files.length;
     
-    // Create a temporary URL for the uploaded file
-    const fileUrl = URL.createObjectURL(file);
-    
-    // Create a temporary image to get dimensions
-    const img = new Image();
-    img.onload = () => {
-      const orientation = img.width >= img.height ? "landscape" : "portrait";
-      
-      const photoId = `photo-${Date.now()}`;
-      const newPhoto: Photo = {
-        id: photoId,
-        title: newPhotoTitle || file.name.split('.')[0] || `Фото ${album.photos.length + 1}`,
-        url: fileUrl,
-        orientation: orientation
-      };
-      
-      const updatedPhotos = [...album.photos, newPhoto];
-      const updatedAlbum = { 
-        ...album, 
-        photos: updatedPhotos,
-        coverUrl: album.photos.length === 0 ? fileUrl : album.coverUrl
-      };
-      
-      // Update local state
-      setAlbum(updatedAlbum);
-      
-      // Update in localStorage
-      const savedAlbums = localStorage.getItem("photoAlbums");
-      if (savedAlbums) {
-        const albums: Album[] = JSON.parse(savedAlbums);
-        const updatedAlbums = albums.map(a => 
-          a.id === albumId ? updatedAlbum : a
-        );
-        localStorage.setItem("photoAlbums", JSON.stringify(updatedAlbums));
-      }
-      
-      // Reset form
-      setNewPhotoTitle("");
-      setIsUploading(false);
-      
+    // Show loading toast for multiple files
+    if (files.length > 1) {
       toast({
-        title: "Фото добавлено",
-        description: "Новое фото успешно добавлено в альбом",
+        title: "Загрузка файлов",
+        description: `Добавление ${files.length} фотографий...`,
       });
-    };
+    }
     
-    img.src = fileUrl;
+    const updatedPhotos = [...album.photos];
+    let newCoverUrl = album.coverUrl;
+    
+    files.forEach((file, index) => {
+      // Create a temporary URL for the uploaded file
+      const fileUrl = URL.createObjectURL(file);
+      
+      // Create a temporary image to get dimensions
+      const img = new Image();
+      img.onload = () => {
+        const orientation = img.width >= img.height ? "landscape" : "portrait";
+        
+        const photoId = `photo-${Date.now()}-${index}`;
+        const newPhoto: Photo = {
+          id: photoId,
+          title: newPhotoTitle || file.name.split('.')[0] || `Фото ${album.photos.length + index + 1}`,
+          url: fileUrl,
+          orientation: orientation
+        };
+        
+        updatedPhotos.push(newPhoto);
+        
+        // If this is the first photo in the album, use it as cover
+        if (album.photos.length === 0 && index === 0) {
+          newCoverUrl = fileUrl;
+        }
+        
+        processedFiles++;
+        
+        // When all files are processed, update the state and localStorage
+        if (processedFiles === totalFiles) {
+          const updatedAlbum = { 
+            ...album, 
+            photos: updatedPhotos,
+            coverUrl: newCoverUrl
+          };
+          
+          // Update local state
+          setAlbum(updatedAlbum);
+          
+          // Update in localStorage
+          const savedAlbums = localStorage.getItem("photoAlbums");
+          if (savedAlbums) {
+            const albums: Album[] = JSON.parse(savedAlbums);
+            const updatedAlbums = albums.map(a => 
+              a.id === albumId ? updatedAlbum : a
+            );
+            localStorage.setItem("photoAlbums", JSON.stringify(updatedAlbums));
+          }
+          
+          // Reset form
+          setNewPhotoTitle("");
+          setIsUploading(false);
+          
+          toast({
+            title: "Фото добавлены",
+            description: `Успешно добавлено ${totalFiles} ${totalFiles === 1 ? 'фото' : 'фотографий'}`,
+          });
+        }
+      };
+      
+      img.src = fileUrl;
+    });
     
     // Reset the file input
     if (fileInputRef.current) {
@@ -173,7 +199,7 @@ const AlbumView = () => {
               {isUploading ? (
                 <div className="flex items-center gap-2">
                   <Input
-                    placeholder="Название фото"
+                    placeholder="Общее название фото"
                     value={newPhotoTitle}
                     onChange={(e) => setNewPhotoTitle(e.target.value)}
                     className="w-48"
@@ -181,13 +207,14 @@ const AlbumView = () => {
                   <input 
                     type="file" 
                     accept="image/*" 
+                    multiple
                     ref={fileInputRef}
                     onChange={handleFileUpload}
                     className="hidden"
                   />
                   <Button onClick={() => fileInputRef.current?.click()}>
                     <Upload size={18} className="mr-2" />
-                    Выбрать файл
+                    Выбрать файлы
                   </Button>
                   <Button 
                     variant="outline" 
@@ -242,10 +269,10 @@ const AlbumView = () => {
           <div className="flex flex-col items-center justify-center h-[40vh] bg-accent/20 rounded-lg">
             <div className="text-center p-8">
               <h2 className="text-xl font-medium mb-2">В этом альбоме пока нет фотографий</h2>
-              <p className="text-muted-foreground mb-4">Добавьте свою первую фотографию в этот альбом</p>
+              <p className="text-muted-foreground mb-4">Добавьте свои фотографии в этот альбом</p>
               <Button onClick={() => setIsUploading(true)} variant="secondary">
                 <PlusCircle className="mr-2" size={18} />
-                Добавить фотографию
+                Добавить фотографии
               </Button>
             </div>
           </div>
