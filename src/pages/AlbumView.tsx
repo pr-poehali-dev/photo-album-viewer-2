@@ -1,12 +1,12 @@
 
-import { useState, useEffect, useRef, ChangeEvent } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Album, Photo } from "./Index";
 import { TopNavigation } from "@/components/TopNavigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Grid, List, PlusCircle, Upload } from "lucide-react";
+import { ArrowLeft, Camera, Edit, Grid, List, PlusCircle, Save } from "lucide-react";
 import { PhotoGrid } from "@/components/PhotoGrid";
 import { PhotoList } from "@/components/PhotoList";
 import { useToast } from "@/components/ui/use-toast";
@@ -18,9 +18,9 @@ const AlbumView = () => {
   const { toast } = useToast();
   const [album, setAlbum] = useState<Album | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [isUploading, setIsUploading] = useState(false);
-  const [newPhotoTitle, setNewPhotoTitle] = useState("");
   const [photoGap, setPhotoGap] = useState(1);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -30,6 +30,7 @@ const AlbumView = () => {
       const foundAlbum = albums.find(a => a.id === albumId);
       if (foundAlbum) {
         setAlbum(foundAlbum);
+        setEditedTitle(foundAlbum.title);
       } else {
         navigate("/", { replace: true });
       }
@@ -38,59 +39,53 @@ const AlbumView = () => {
     }
   }, [albumId, navigate]);
 
-  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    if (!album || !event.target.files || event.target.files.length === 0) return;
-    
-    const files = Array.from(event.target.files);
-    let processedFiles = 0;
-    const totalFiles = files.length;
-    
-    // Show loading toast for multiple files
-    if (files.length > 1) {
-      toast({
-        title: "Загрузка файлов",
-        description: `Добавление ${files.length} фотографий...`,
-      });
+  const handleAddPhotos = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
     }
+  };
+
+  const processNewPhotos = (files: File[]) => {
+    if (!album || files.length === 0) return;
     
     const updatedPhotos = [...album.photos];
     let newCoverUrl = album.coverUrl;
+    const processedPhotos: Photo[] = [];
+    
+    let filesProcessed = 0;
     
     files.forEach((file, index) => {
-      // Create a temporary URL for the uploaded file
       const fileUrl = URL.createObjectURL(file);
-      
-      // Create a temporary image to get dimensions
       const img = new Image();
+      
       img.onload = () => {
         const orientation = img.width >= img.height ? "landscape" : "portrait";
         
-        const photoId = `photo-${Date.now()}-${index}`;
         const newPhoto: Photo = {
-          id: photoId,
-          title: newPhotoTitle || file.name.split('.')[0] || `Фото ${album.photos.length + index + 1}`,
+          id: `photo-${Date.now()}-${index}`,
+          title: file.name.split('.')[0] || `Фото ${album.photos.length + index + 1}`,
           url: fileUrl,
           orientation: orientation
         };
         
-        updatedPhotos.push(newPhoto);
+        processedPhotos.push(newPhoto);
+        filesProcessed++;
         
-        // If this is the first photo in the album, use it as cover
-        if (album.photos.length === 0 && index === 0) {
+        // If this is first photo and album has no cover
+        if (!album.coverUrl && index === 0) {
           newCoverUrl = fileUrl;
         }
         
-        processedFiles++;
-        
-        // When all files are processed, update the state and localStorage
-        if (processedFiles === totalFiles) {
-          const updatedAlbum = { 
-            ...album, 
-            photos: updatedPhotos,
-            coverUrl: newCoverUrl
+        // When all files processed
+        if (filesProcessed === files.length) {
+          const allNewPhotos = [...updatedPhotos, ...processedPhotos];
+          
+          const updatedAlbum = {
+            ...album,
+            photos: allNewPhotos,
+            coverUrl: newCoverUrl === "https://via.placeholder.com/300" ? processedPhotos[0]?.url || newCoverUrl : newCoverUrl
           };
           
-          // Update local state
           setAlbum(updatedAlbum);
           
           // Update in localStorage
@@ -103,23 +98,32 @@ const AlbumView = () => {
             localStorage.setItem("photoAlbums", JSON.stringify(updatedAlbums));
           }
           
-          // Reset form
-          setNewPhotoTitle("");
-          setIsUploading(false);
-          
           toast({
-            title: "Фото добавлены",
-            description: `Успешно добавлено ${totalFiles} ${totalFiles === 1 ? 'фото' : 'фотографий'}`,
+            title: "Фотографии добавлены",
+            description: `Успешно добавлено ${files.length} ${files.length === 1 ? 'фото' : 'фотографий'}`,
           });
         }
       };
       
       img.src = fileUrl;
     });
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0) return;
     
-    // Reset the file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+    const files = Array.from(event.target.files);
+    
+    if (files.length > 0) {
+      toast({
+        title: "Обработка фотографий",
+        description: `Добавление ${files.length} ${files.length === 1 ? 'фотографии' : 'фотографий'}...`,
+      });
+      
+      processNewPhotos(files);
+      
+      // Reset input value to allow uploading the same file again
+      event.target.value = '';
     }
   };
 
@@ -133,6 +137,8 @@ const AlbumView = () => {
     const deletedPhoto = album.photos.find(p => p.id === photoId);
     if (deletedPhoto && deletedPhoto.url === album.coverUrl && updatedPhotos.length > 0) {
       newCoverUrl = updatedPhotos[0].url;
+    } else if (updatedPhotos.length === 0) {
+      newCoverUrl = "https://via.placeholder.com/300";
     }
     
     const updatedAlbum = { 
@@ -160,6 +166,42 @@ const AlbumView = () => {
     });
   };
 
+  const startEditingTitle = () => {
+    if (album) {
+      setEditedTitle(album.title);
+      setIsEditingTitle(true);
+    }
+  };
+
+  const saveAlbumTitle = () => {
+    if (!album || !editedTitle.trim()) return;
+    
+    const updatedAlbum = { ...album, title: editedTitle.trim() };
+    setAlbum(updatedAlbum);
+    setIsEditingTitle(false);
+    
+    // Update in localStorage
+    const savedAlbums = localStorage.getItem("photoAlbums");
+    if (savedAlbums) {
+      const albums: Album[] = JSON.parse(savedAlbums);
+      const updatedAlbums = albums.map(a => 
+        a.id === albumId ? updatedAlbum : a
+      );
+      localStorage.setItem("photoAlbums", JSON.stringify(updatedAlbums));
+    }
+    
+    toast({
+      title: "Название изменено",
+      description: "Название альбома успешно обновлено",
+    });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      saveAlbumTitle();
+    }
+  };
+
   if (!album) {
     return <div>Загрузка...</div>;
   }
@@ -181,7 +223,33 @@ const AlbumView = () => {
           </Button>
           
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">{album.title}</h1>
+            {isEditingTitle ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="w-64"
+                  autoFocus
+                />
+                <Button size="sm" onClick={saveAlbumTitle}>
+                  <Save size={16} className="mr-2" />
+                  Сохранить
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold">{album.title}</h1>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={startEditingTitle}
+                  className="h-8 w-8"
+                >
+                  <Edit size={16} />
+                </Button>
+              </div>
+            )}
             
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
@@ -196,39 +264,18 @@ const AlbumView = () => {
                 />
               </div>
               
-              {isUploading ? (
-                <div className="flex items-center gap-2">
-                  <Input
-                    placeholder="Общее название фото"
-                    value={newPhotoTitle}
-                    onChange={(e) => setNewPhotoTitle(e.target.value)}
-                    className="w-48"
-                  />
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    multiple
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  <Button onClick={() => fileInputRef.current?.click()}>
-                    <Upload size={18} className="mr-2" />
-                    Выбрать файлы
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setIsUploading(false)}
-                  >
-                    Отмена
-                  </Button>
-                </div>
-              ) : (
-                <Button onClick={() => setIsUploading(true)}>
-                  <PlusCircle size={18} className="mr-2" />
-                  Добавить фото
-                </Button>
-              )}
+              <input 
+                type="file" 
+                accept="image/*" 
+                multiple
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <Button onClick={handleAddPhotos}>
+                <PlusCircle size={18} className="mr-2" />
+                Добавить фото
+              </Button>
             </div>
           </div>
         </div>
@@ -268,9 +315,10 @@ const AlbumView = () => {
         {album.photos.length === 0 && (
           <div className="flex flex-col items-center justify-center h-[40vh] bg-accent/20 rounded-lg">
             <div className="text-center p-8">
+              <Camera size={64} className="mx-auto mb-4 text-muted-foreground" />
               <h2 className="text-xl font-medium mb-2">В этом альбоме пока нет фотографий</h2>
               <p className="text-muted-foreground mb-4">Добавьте свои фотографии в этот альбом</p>
-              <Button onClick={() => setIsUploading(true)} variant="secondary">
+              <Button onClick={handleAddPhotos} variant="secondary">
                 <PlusCircle className="mr-2" size={18} />
                 Добавить фотографии
               </Button>

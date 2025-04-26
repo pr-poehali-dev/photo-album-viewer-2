@@ -25,18 +25,25 @@ export const PhotoGrid = ({ photos, onDeletePhoto, photoGap }: PhotoGridProps) =
   return (
     <div className="w-full">
       <div 
-        className={`grid grid-cols-5 ${getGapClass(photoGap)} auto-rows-auto`}
+        className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 ${getGapClass(photoGap)}`}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+          gridAutoFlow: "dense"
+        }}
       >
         {photos.map((photo) => {
-          // Определяем размер для фото: 10x15 (портрет) и 15x10 (пейзаж)
-          const colSpan = photo.orientation === "portrait" ? 1 : 2;
+          // Задаем размер для разных ориентаций фото
+          const gridColumn = photo.orientation === "landscape" ? "span 2" : "span 1";
           
           return (
             <div 
               key={photo.id} 
-              className={`group relative col-span-${colSpan} overflow-hidden border rounded-sm`}
+              className="relative group overflow-hidden border rounded-sm"
               style={{ 
-                aspectRatio: photo.orientation === "portrait" ? "2/3" : "3/2" 
+                gridColumn,
+                aspectRatio: photo.orientation === "portrait" ? "2/3" : "3/2",
+                minHeight: "150px"
               }}
             >
               <div className="relative h-full w-full">
@@ -45,8 +52,8 @@ export const PhotoGrid = ({ photos, onDeletePhoto, photoGap }: PhotoGridProps) =
                   alt={photo.title} 
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute bottom-0 left-0 right-0 bg-black/70 p-1 text-white">
-                  <p className="text-xs truncate" title={photo.title}>{photo.title}</p>
+                <div className="absolute bottom-0 left-0 right-0 bg-white/80 p-1">
+                  <p className="text-xs truncate text-black" title={photo.title}>{photo.title}</p>
                 </div>
                 <Button
                   variant="destructive"
