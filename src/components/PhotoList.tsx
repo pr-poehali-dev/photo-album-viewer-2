@@ -10,10 +10,16 @@ interface PhotoListProps {
 
 export const PhotoList = ({ photos, onDeletePhoto }: PhotoListProps) => {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {photos.map((photo) => (
-        <div key={photo.id} className="flex items-center gap-4 p-2 border rounded-md hover:bg-accent/10">
-          <div className="w-24 h-24 flex-shrink-0 overflow-hidden rounded-md">
+        <div key={photo.id} className="group flex items-center gap-4 p-2 border rounded-md hover:bg-accent/10">
+          <div 
+            className="h-20 flex-shrink-0 overflow-hidden rounded-md"
+            style={{ 
+              width: photo.orientation === "portrait" ? "calc(20px * 2/3)" : "calc(20px * 3/2)",
+              aspectRatio: photo.orientation === "portrait" ? "2/3" : "3/2"
+            }}
+          >
             <img 
               src={photo.url} 
               alt={photo.title} 
@@ -21,12 +27,15 @@ export const PhotoList = ({ photos, onDeletePhoto }: PhotoListProps) => {
             />
           </div>
           <div className="flex-1">
-            <h3 className="font-medium">{photo.title}</h3>
+            <h3 className="font-medium text-sm">{photo.title}</h3>
+            <p className="text-xs text-muted-foreground">
+              {photo.orientation === "portrait" ? "Портретная" : "Альбомная"}
+            </p>
           </div>
           <Button
             variant="ghost"
             size="icon"
-            className="text-destructive hover:text-destructive"
+            className="text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
             onClick={() => onDeletePhoto(photo.id)}
           >
             <Trash2 size={16} />
