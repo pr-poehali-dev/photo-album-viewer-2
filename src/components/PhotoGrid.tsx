@@ -1,4 +1,5 @@
 
+import { memo } from "react";
 import { Photo } from "@/pages/Index";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
@@ -10,7 +11,8 @@ interface PhotoGridProps {
   photoSize: number;
 }
 
-export const PhotoGrid = ({ photos, onDeletePhoto, photoGap, photoSize }: PhotoGridProps) => {
+// Используем memo для предотвращения ненужных ререндеров
+export const PhotoGrid = memo(({ photos, onDeletePhoto, photoGap, photoSize }: PhotoGridProps) => {
   // Функция для определения класса отступов между фото
   const getGapClass = (gap: number) => {
     const gapMap: Record<number, string> = {
@@ -65,6 +67,7 @@ export const PhotoGrid = ({ photos, onDeletePhoto, photoGap, photoSize }: PhotoG
                   src={photo.url} 
                   alt={photo.title} 
                   className="w-full h-full object-cover"
+                  loading="lazy" // Добавляем ленивую загрузку
                 />
                 {/* Белая полоса с подписью */}
                 <div className="absolute bottom-0 left-0 right-0 bg-white/80 p-1">
@@ -89,4 +92,6 @@ export const PhotoGrid = ({ photos, onDeletePhoto, photoGap, photoSize }: PhotoG
       </div>
     </div>
   );
-};
+});
+
+PhotoGrid.displayName = "PhotoGrid";

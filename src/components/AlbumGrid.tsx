@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { Link } from "react-router-dom";
 import { Camera, Edit, Trash2 } from "lucide-react";
 import { Album } from "@/pages/Index";
@@ -14,7 +14,8 @@ interface AlbumGridProps {
   albumSize: number;
 }
 
-export const AlbumGrid = ({ 
+// Используем memo для предотвращения ненужных ререндеров
+export const AlbumGrid = memo(({ 
   albums, 
   onDeleteAlbum, 
   onUpdateTitle, 
@@ -64,7 +65,7 @@ export const AlbumGrid = ({
           className="bg-card rounded-lg overflow-hidden border shadow-sm hover:shadow-md transition-shadow"
         >
           <Link to={`/album/${album.id}`} className="block">
-            <div className="aspect-square overflow-hidden relative bg-gray-100">
+            <div className="aspect-square overflow-hidden relative bg-gray-100 group">
               {album.photos.length > 0 ? (
                 <img 
                   src={album.coverUrl} 
@@ -81,7 +82,7 @@ export const AlbumGrid = ({
               </div>
               
               {/* Кнопки действий поверх картинки */}
-              <div className="absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 hover:opacity-100 flex gap-1 bg-black/40 rounded-bl-lg transition-opacity">
+              <div className="absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 flex gap-1 bg-black/40 rounded-bl-lg transition-opacity">
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -137,4 +138,6 @@ export const AlbumGrid = ({
       </button>
     </div>
   );
-};
+});
+
+AlbumGrid.displayName = "AlbumGrid";

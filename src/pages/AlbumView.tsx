@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Album, Photo } from "./Index";
 import { TopNavigation } from "@/components/TopNavigation";
@@ -23,48 +23,81 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+// Оптимизированная компонента для отображения альбома
 const AlbumView = () => {
   const { albumId } = useParams<{ albumId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [album, setAlbum] = useState<Album | null>(null);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [photoGap, setPhotoGap] = useState(1);
-  const [photoSize, setPhotoSize] = useState(3); // 1-5 шкала для размера фото
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+    const saved = localStorage.getItem("viewMode");
+    return saved === "list" ? "list" : "grid";
+  });
+  const [photoGap, setPhotoGap] = useState(() => {
+    const saved = localStorage.getItem("photoGap");
+    return saved ? parseInt(saved) : 1;
+  });
+  const [photoSize, setPhotoSize] = useState(() => {
+    const saved = localStorage.getItem("photoSize");
+    return saved ? parseInt(saved) : 3;
+  });
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Сохраняем настройки отображения
   useEffect(() => {
-    const savedAlbums = localStorage.getItem("photoAlbums");
-    if (savedAlbums) {
-      const albums: Album[] = JSON.parse(savedAlbums);
-      const foundAlbum = albums.find(a => a.id === albumId);
-      if (foundAlbum) {
-        setAlbum(foundAlbum);
-        setEditedTitle(foundAlbum.title);
-      } else {
+    localStorage.setItem("viewMode", viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem("photoGap", photoGap.toString());
+  }, [photoGap]);
+
+  useEffect(() => {
+    localStorage.setItem("photoSize", photoSize.toString());
+  }, [photoSize]);
+
+  // Загружаем альбом при монтировании
+  useEffect(() => {
+    const loadAlbum = () => {
+      try {
+        const savedAlbums = localStorage.getItem("photoAlbums");
+        if (savedAlbums) {
+          const albums: Album[] = JSON.parse(savedAlbums);
+          const foundAlbum = albums.find(a => a.id === albumId);
+          if (foundAlbum) {
+            setAlbum(foundAlbum);
+            setEditedTitle(foundAlbum.title);
+          } else {
+            navigate("/", { replace: true });
+          }
+        } else {
+          navigate("/", { replace: true });
+        }
+      } catch (error) {
+        console.error("Ошибка загрузки альбома:", error);
+        toast({
+          title: "Ошибка загрузки",
+          description: "Не удалось загрузить альбом",
+          variant: "destructive"
+        });
         navigate("/", { replace: true });
       }
-    } else {
-      navigate("/", { replace: true });
-    }
-  }, [albumId, navigate]);
+    };
 
-  const handleAddPhotos = () => {
+    loadAlbum();
+  }, [albumId, navigate, toast]);
+
+  // Оптимизированная функция добавления фотографий
+  const handleAddPhotos = useCallback(() => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
-  };
+  }, []);
 
-  const processNewPhotos = (files: File[]) => {
+  const processNewPhotos = useCallback((files: File[]) => {
     if (!album || files.length === 0) return;
-    
-    const updatedPhotos = [...album.photos];
-    const newPhotos: Photo[] = [];
-    const readers: FileReader[] = [];
-    
-    let filesProcessed = 0;
     
     // Показываем уведомление о начале загрузки
     toast({
@@ -72,10 +105,14 @@ const AlbumView = () => {
       description: `Добавление ${files.length} ${files.length === 1 ? 'фотографии' : 'фотографий'}...`,
     });
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    // Используем оптимизированный подход для обработки изображений
+    const updatedPhotos = [...album.photos];
+    const newPhotos: Photo[] = [];
+    let filesProcessed = 0;
+    
+    // Создаем обработчик для каждого файла
+    const processFile = (file: File, index: number) => {
       const reader = new FileReader();
-      readers.push(reader);
       
       reader.onload = (e) => {
         if (!e.target?.result) return;
@@ -85,8 +122,8 @@ const AlbumView = () => {
           const orientation = img.width >= img.height ? "landscape" : "portrait";
           
           const newPhoto: Photo = {
-            id: `photo-${Date.now()}-${i}`,
-            title: file.name.split('.')[0] || `Фото ${album.photos.length + i + 1}`,
+            id: `photo-${Date.now()}-${index}`,
+            title: file.name.split('.')[0] || `Фото ${album.photos.length + index + 1}`,
             url: e.target?.result as string,
             orientation: orientation
           };
@@ -97,30 +134,19 @@ const AlbumView = () => {
           // Когда все файлы обработаны
           if (filesProcessed === files.length) {
             const allPhotos = [...updatedPhotos, ...newPhotos];
-            let coverUrl = album.coverUrl;
-            
-            // Если альбом не имеет обложки и есть новые фото
-            if (!album.coverUrl && newPhotos.length > 0) {
-              coverUrl = newPhotos[0].url;
-            }
+            const coverUrl = album.coverUrl || (newPhotos.length > 0 ? newPhotos[0].url : "");
             
             const updatedAlbum = {
               ...album,
               photos: allPhotos,
-              coverUrl: coverUrl
+              coverUrl
             };
             
+            // Обновляем состояние
             setAlbum(updatedAlbum);
             
-            // Update in localStorage
-            const savedAlbums = localStorage.getItem("photoAlbums");
-            if (savedAlbums) {
-              const albums: Album[] = JSON.parse(savedAlbums);
-              const updatedAlbums = albums.map(a => 
-                a.id === albumId ? updatedAlbum : a
-              );
-              localStorage.setItem("photoAlbums", JSON.stringify(updatedAlbums));
-            }
+            // Обновляем в localStorage
+            saveAlbum(updatedAlbum);
             
             toast({
               title: "Фотографии добавлены",
@@ -133,10 +159,34 @@ const AlbumView = () => {
       };
       
       reader.readAsDataURL(file);
-    }
-  };
+    };
+    
+    // Обрабатываем файлы последовательно
+    files.forEach(processFile);
+  }, [album, toast]);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Функция сохранения альбома в localStorage
+  const saveAlbum = useCallback((updatedAlbum: Album) => {
+    try {
+      const savedAlbums = localStorage.getItem("photoAlbums");
+      if (savedAlbums) {
+        const albums: Album[] = JSON.parse(savedAlbums);
+        const updatedAlbums = albums.map(a => 
+          a.id === updatedAlbum.id ? updatedAlbum : a
+        );
+        localStorage.setItem("photoAlbums", JSON.stringify(updatedAlbums));
+      }
+    } catch (error) {
+      console.error("Ошибка сохранения альбома:", error);
+      toast({
+        title: "Ошибка сохранения",
+        description: "Не удалось сохранить изменения",
+        variant: "destructive"
+      });
+    }
+  }, [toast]);
+
+  const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0) return;
     
     const files = Array.from(event.target.files);
@@ -147,9 +197,9 @@ const AlbumView = () => {
       // Reset input value to allow uploading the same file again
       event.target.value = '';
     }
-  };
+  }, [processNewPhotos]);
 
-  const deletePhoto = (photoId: string) => {
+  const deletePhoto = useCallback((photoId: string) => {
     if (!album) return;
     
     const updatedPhotos = album.photos.filter(photo => photo.id !== photoId);
@@ -169,26 +219,19 @@ const AlbumView = () => {
       coverUrl: newCoverUrl
     };
     
-    // Update local state
+    // Обновляем состояние
     setAlbum(updatedAlbum);
     
-    // Update in localStorage
-    const savedAlbums = localStorage.getItem("photoAlbums");
-    if (savedAlbums) {
-      const albums: Album[] = JSON.parse(savedAlbums);
-      const updatedAlbums = albums.map(a => 
-        a.id === albumId ? updatedAlbum : a
-      );
-      localStorage.setItem("photoAlbums", JSON.stringify(updatedAlbums));
-    }
+    // Сохраняем в localStorage
+    saveAlbum(updatedAlbum);
     
     toast({
       title: "Фото удалено",
       description: "Фото успешно удалено из альбома",
     });
-  };
+  }, [album, saveAlbum, toast]);
 
-  const deleteAllPhotos = () => {
+  const deleteAllPhotos = useCallback(() => {
     if (!album) return;
     
     const updatedAlbum = { 
@@ -197,63 +240,57 @@ const AlbumView = () => {
       coverUrl: ""
     };
     
-    // Update local state
+    // Обновляем состояние
     setAlbum(updatedAlbum);
     
-    // Update in localStorage
-    const savedAlbums = localStorage.getItem("photoAlbums");
-    if (savedAlbums) {
-      const albums: Album[] = JSON.parse(savedAlbums);
-      const updatedAlbums = albums.map(a => 
-        a.id === albumId ? updatedAlbum : a
-      );
-      localStorage.setItem("photoAlbums", JSON.stringify(updatedAlbums));
-    }
+    // Сохраняем в localStorage
+    saveAlbum(updatedAlbum);
     
     toast({
       title: "Все фото удалены",
       description: "Все фотографии успешно удалены из альбома",
     });
-  };
+  }, [album, saveAlbum, toast]);
 
-  const startEditingTitle = () => {
+  const startEditingTitle = useCallback(() => {
     if (album) {
       setEditedTitle(album.title);
       setIsEditingTitle(true);
     }
-  };
+  }, [album]);
 
-  const saveAlbumTitle = () => {
+  const saveAlbumTitle = useCallback(() => {
     if (!album || !editedTitle.trim()) return;
     
     const updatedAlbum = { ...album, title: editedTitle.trim() };
     setAlbum(updatedAlbum);
     setIsEditingTitle(false);
     
-    // Update in localStorage
-    const savedAlbums = localStorage.getItem("photoAlbums");
-    if (savedAlbums) {
-      const albums: Album[] = JSON.parse(savedAlbums);
-      const updatedAlbums = albums.map(a => 
-        a.id === albumId ? updatedAlbum : a
-      );
-      localStorage.setItem("photoAlbums", JSON.stringify(updatedAlbums));
-    }
+    // Сохраняем в localStorage
+    saveAlbum(updatedAlbum);
     
     toast({
       title: "Название изменено",
       description: "Название альбома успешно обновлено",
     });
-  };
+  }, [album, editedTitle, saveAlbum, toast]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       saveAlbumTitle();
     }
-  };
+  }, [saveAlbumTitle]);
 
+  // Покажем загрузку, если альбом еще не загружен
   if (!album) {
-    return <div>Загрузка...</div>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p>Загрузка альбома...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -1,4 +1,5 @@
 
+import { memo } from "react";
 import { Photo } from "@/pages/Index";
 import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
@@ -8,40 +9,46 @@ interface PhotoListProps {
   onDeletePhoto: (id: string) => void;
 }
 
-export const PhotoList = ({ photos, onDeletePhoto }: PhotoListProps) => {
+// Используем memo для предотвращения ненужных ререндеров
+export const PhotoList = memo(({ photos, onDeletePhoto }: PhotoListProps) => {
   return (
     <div className="space-y-3">
       {photos.map((photo) => (
-        <div key={photo.id} className="group flex items-center gap-4 p-2 border rounded-md hover:bg-accent/10">
-          <div 
-            className="h-20 flex-shrink-0 overflow-hidden rounded-md"
-            style={{ 
-              width: photo.orientation === "portrait" ? "calc(20px * 2/3)" : "calc(20px * 3/2)",
-              aspectRatio: photo.orientation === "portrait" ? "2/3" : "3/2"
-            }}
-          >
+        <div key={photo.id} className="flex items-center border rounded-md overflow-hidden bg-card">
+          <div className="h-16 w-16 flex-shrink-0">
             <img 
               src={photo.url} 
               alt={photo.title} 
-              className="w-full h-full object-cover"
+              className="h-full w-full object-cover"
+              loading="lazy" // Добавляем ленивую загрузку
             />
           </div>
-          <div className="flex-1">
-            <h3 className="font-medium text-sm">{photo.title}</h3>
+          <div className="flex-1 p-3 min-w-0">
+            <h3 className="truncate text-sm font-medium">{photo.title}</h3>
             <p className="text-xs text-muted-foreground">
-              {photo.orientation === "portrait" ? "Портретная" : "Альбомная"}
+              {photo.orientation === "landscape" ? "Горизонтальное" : "Вертикальное"}
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-destructive hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-            onClick={() => onDeletePhoto(photo.id)}
-          >
-            <Trash2 size={16} />
-          </Button>
+          <div className="p-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover:text-destructive h-8 w-8"
+              onClick={() => onDeletePhoto(photo.id)}
+            >
+              <Trash2 size={16} />
+            </Button>
+          </div>
         </div>
       ))}
+      
+      {photos.length === 0 && (
+        <div className="text-center py-8 bg-accent/10 rounded-md">
+          <p className="text-muted-foreground">Нет фотографий для отображения</p>
+        </div>
+      )}
     </div>
   );
-};
+});
+
+PhotoList.displayName = "PhotoList";
