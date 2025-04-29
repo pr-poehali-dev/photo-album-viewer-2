@@ -6,11 +6,22 @@ import { TopNavigation } from "@/components/TopNavigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Camera, Edit, Grid, List, PlusCircle, Save } from "lucide-react";
+import { ArrowLeft, Camera, Edit, Grid, List, PlusCircle, Save, Trash2 } from "lucide-react";
 import { PhotoGrid } from "@/components/PhotoGrid";
 import { PhotoList } from "@/components/PhotoList";
 import { useToast } from "@/components/ui/use-toast";
 import { Slider } from "@/components/ui/slider";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const AlbumView = () => {
   const { albumId } = useParams<{ albumId: string }>();
@@ -19,6 +30,7 @@ const AlbumView = () => {
   const [album, setAlbum] = useState<Album | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [photoGap, setPhotoGap] = useState(1);
+  const [photoSize, setPhotoSize] = useState(3); // 1-5 шкала для размера фото
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,64 +61,79 @@ const AlbumView = () => {
     if (!album || files.length === 0) return;
     
     const updatedPhotos = [...album.photos];
-    let newCoverUrl = album.coverUrl;
-    const processedPhotos: Photo[] = [];
+    const newPhotos: Photo[] = [];
+    const readers: FileReader[] = [];
     
     let filesProcessed = 0;
     
-    files.forEach((file, index) => {
-      const fileUrl = URL.createObjectURL(file);
-      const img = new Image();
+    // Показываем уведомление о начале загрузки
+    toast({
+      title: "Обработка фотографий",
+      description: `Добавление ${files.length} ${files.length === 1 ? 'фотографии' : 'фотографий'}...`,
+    });
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const reader = new FileReader();
+      readers.push(reader);
       
-      img.onload = () => {
-        const orientation = img.width >= img.height ? "landscape" : "portrait";
+      reader.onload = (e) => {
+        if (!e.target?.result) return;
         
-        const newPhoto: Photo = {
-          id: `photo-${Date.now()}-${index}`,
-          title: file.name.split('.')[0] || `Фото ${album.photos.length + index + 1}`,
-          url: fileUrl,
-          orientation: orientation
-        };
-        
-        processedPhotos.push(newPhoto);
-        filesProcessed++;
-        
-        // If this is first photo and album has no cover
-        if (!album.coverUrl && index === 0) {
-          newCoverUrl = fileUrl;
-        }
-        
-        // When all files processed
-        if (filesProcessed === files.length) {
-          const allNewPhotos = [...updatedPhotos, ...processedPhotos];
+        const img = new Image();
+        img.onload = () => {
+          const orientation = img.width >= img.height ? "landscape" : "portrait";
           
-          const updatedAlbum = {
-            ...album,
-            photos: allNewPhotos,
-            coverUrl: newCoverUrl === "https://via.placeholder.com/300" ? processedPhotos[0]?.url || newCoverUrl : newCoverUrl
+          const newPhoto: Photo = {
+            id: `photo-${Date.now()}-${i}`,
+            title: file.name.split('.')[0] || `Фото ${album.photos.length + i + 1}`,
+            url: e.target?.result as string,
+            orientation: orientation
           };
           
-          setAlbum(updatedAlbum);
+          newPhotos.push(newPhoto);
+          filesProcessed++;
           
-          // Update in localStorage
-          const savedAlbums = localStorage.getItem("photoAlbums");
-          if (savedAlbums) {
-            const albums: Album[] = JSON.parse(savedAlbums);
-            const updatedAlbums = albums.map(a => 
-              a.id === albumId ? updatedAlbum : a
-            );
-            localStorage.setItem("photoAlbums", JSON.stringify(updatedAlbums));
+          // Когда все файлы обработаны
+          if (filesProcessed === files.length) {
+            const allPhotos = [...updatedPhotos, ...newPhotos];
+            let coverUrl = album.coverUrl;
+            
+            // Если альбом не имеет обложки и есть новые фото
+            if (!album.coverUrl && newPhotos.length > 0) {
+              coverUrl = newPhotos[0].url;
+            }
+            
+            const updatedAlbum = {
+              ...album,
+              photos: allPhotos,
+              coverUrl: coverUrl
+            };
+            
+            setAlbum(updatedAlbum);
+            
+            // Update in localStorage
+            const savedAlbums = localStorage.getItem("photoAlbums");
+            if (savedAlbums) {
+              const albums: Album[] = JSON.parse(savedAlbums);
+              const updatedAlbums = albums.map(a => 
+                a.id === albumId ? updatedAlbum : a
+              );
+              localStorage.setItem("photoAlbums", JSON.stringify(updatedAlbums));
+            }
+            
+            toast({
+              title: "Фотографии добавлены",
+              description: `Успешно добавлено ${files.length} ${files.length === 1 ? 'фото' : 'фотографий'}`,
+            });
           }
-          
-          toast({
-            title: "Фотографии добавлены",
-            description: `Успешно добавлено ${files.length} ${files.length === 1 ? 'фото' : 'фотографий'}`,
-          });
-        }
+        };
+        
+        img.src = e.target.result as string;
       };
       
-      img.src = fileUrl;
-    });
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,11 +142,6 @@ const AlbumView = () => {
     const files = Array.from(event.target.files);
     
     if (files.length > 0) {
-      toast({
-        title: "Обработка фотографий",
-        description: `Добавление ${files.length} ${files.length === 1 ? 'фотографии' : 'фотографий'}...`,
-      });
-      
       processNewPhotos(files);
       
       // Reset input value to allow uploading the same file again
@@ -138,7 +160,7 @@ const AlbumView = () => {
     if (deletedPhoto && deletedPhoto.url === album.coverUrl && updatedPhotos.length > 0) {
       newCoverUrl = updatedPhotos[0].url;
     } else if (updatedPhotos.length === 0) {
-      newCoverUrl = "https://via.placeholder.com/300";
+      newCoverUrl = "";
     }
     
     const updatedAlbum = { 
@@ -163,6 +185,34 @@ const AlbumView = () => {
     toast({
       title: "Фото удалено",
       description: "Фото успешно удалено из альбома",
+    });
+  };
+
+  const deleteAllPhotos = () => {
+    if (!album) return;
+    
+    const updatedAlbum = { 
+      ...album, 
+      photos: [],
+      coverUrl: ""
+    };
+    
+    // Update local state
+    setAlbum(updatedAlbum);
+    
+    // Update in localStorage
+    const savedAlbums = localStorage.getItem("photoAlbums");
+    if (savedAlbums) {
+      const albums: Album[] = JSON.parse(savedAlbums);
+      const updatedAlbums = albums.map(a => 
+        a.id === albumId ? updatedAlbum : a
+      );
+      localStorage.setItem("photoAlbums", JSON.stringify(updatedAlbums));
+    }
+    
+    toast({
+      title: "Все фото удалены",
+      description: "Все фотографии успешно удалены из альбома",
     });
   };
 
@@ -222,45 +272,59 @@ const AlbumView = () => {
             Назад к альбомам
           </Button>
           
-          <div className="flex items-center justify-between">
-            {isEditingTitle ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={editedTitle}
-                  onChange={(e) => setEditedTitle(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="w-64"
-                  autoFocus
-                />
-                <Button size="sm" onClick={saveAlbumTitle}>
-                  <Save size={16} className="mr-2" />
-                  Сохранить
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold">{album.title}</h1>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={startEditingTitle}
-                  className="h-8 w-8"
-                >
-                  <Edit size={16} />
-                </Button>
-              </div>
-            )}
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex-1 min-w-[200px]">
+              {isEditingTitle ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={editedTitle}
+                    onChange={(e) => setEditedTitle(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="w-64"
+                    autoFocus
+                  />
+                  <Button size="sm" onClick={saveAlbumTitle}>
+                    <Save size={16} className="mr-2" />
+                    Сохранить
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-bold">{album.title}</h1>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={startEditingTitle}
+                    className="h-8 w-8"
+                  >
+                    <Edit size={16} />
+                  </Button>
+                </div>
+              )}
+            </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               <div className="flex items-center gap-2">
-                <span className="text-sm">Отступы:</span>
+                <span className="text-sm whitespace-nowrap">Отступы:</span>
                 <Slider
-                  className="w-32"
+                  className="w-24"
                   min={0}
                   max={5}
                   step={1}
                   value={[photoGap]}
                   onValueChange={(values) => setPhotoGap(values[0])}
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm whitespace-nowrap">Размер:</span>
+                <Slider
+                  className="w-24"
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={[photoSize]}
+                  onValueChange={(values) => setPhotoSize(values[0])}
                 />
               </div>
               
@@ -276,6 +340,27 @@ const AlbumView = () => {
                 <PlusCircle size={18} className="mr-2" />
                 Добавить фото
               </Button>
+              
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={album.photos.length === 0}>
+                    <Trash2 size={16} className="mr-2" />
+                    Удалить все фото
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Удалить все фотографии?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Это действие нельзя отменить. Все фотографии из альбома будут удалены.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Отмена</AlertDialogCancel>
+                    <AlertDialogAction onClick={deleteAllPhotos}>Удалить</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         </div>
@@ -304,7 +389,12 @@ const AlbumView = () => {
           </div>
           
           <TabsContent value="grid">
-            <PhotoGrid photos={album.photos} onDeletePhoto={deletePhoto} photoGap={photoGap} />
+            <PhotoGrid 
+              photos={album.photos} 
+              onDeletePhoto={deletePhoto} 
+              photoGap={photoGap} 
+              photoSize={photoSize}
+            />
           </TabsContent>
           
           <TabsContent value="list">

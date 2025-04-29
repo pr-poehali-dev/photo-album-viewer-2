@@ -1,15 +1,9 @@
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Camera, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Camera, Edit, Trash2 } from "lucide-react";
 import { Album } from "@/pages/Index";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 
 interface AlbumGridProps {
@@ -17,13 +11,22 @@ interface AlbumGridProps {
   onDeleteAlbum: (id: string) => void;
   onUpdateTitle: (id: string, title: string) => void;
   onCreateAlbum: () => void;
+  albumSize: number;
 }
 
-export const AlbumGrid = ({ albums, onDeleteAlbum, onUpdateTitle, onCreateAlbum }: AlbumGridProps) => {
+export const AlbumGrid = ({ 
+  albums, 
+  onDeleteAlbum, 
+  onUpdateTitle, 
+  onCreateAlbum,
+  albumSize
+}: AlbumGridProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
-  const startEditing = (album: Album) => {
+  const startEditing = (album: Album, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     setEditingId(album.id);
     setEditValue(album.title);
   };
@@ -35,8 +38,26 @@ export const AlbumGrid = ({ albums, onDeleteAlbum, onUpdateTitle, onCreateAlbum 
     setEditingId(null);
   };
 
+  const handleDeleteAlbum = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDeleteAlbum(id);
+  };
+
+  // Функция для определения размера альбомов
+  const getAlbumSizeClass = (size: number) => {
+    switch(size) {
+      case 1: return "grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10";
+      case 2: return "grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8";
+      case 3: return "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7";
+      case 4: return "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6";
+      case 5: return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
+      default: return "grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7";
+    }
+  };
+
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+    <div className={`grid ${getAlbumSizeClass(albumSize)} gap-3`}>
       {albums.map((album) => (
         <div 
           key={album.id} 
@@ -58,10 +79,30 @@ export const AlbumGrid = ({ albums, onDeleteAlbum, onUpdateTitle, onCreateAlbum 
               <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded-sm">
                 {album.photos.length}
               </div>
+              
+              {/* Кнопки действий поверх картинки */}
+              <div className="absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 hover:opacity-100 flex gap-1 bg-black/40 rounded-bl-lg transition-opacity">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-7 w-7 bg-white/80 hover:bg-white text-black"
+                  onClick={(e) => startEditing(album, e)}
+                >
+                  <Edit size={14} />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-7 w-7 bg-white/80 hover:bg-white text-red-500"
+                  onClick={(e) => handleDeleteAlbum(album.id, e)}
+                >
+                  <Trash2 size={14} />
+                </Button>
+              </div>
             </div>
           </Link>
           
-          <div className="p-2 flex justify-between items-center">
+          <div className="p-2">
             {editingId === album.id ? (
               <div className="flex w-full gap-2">
                 <Input
@@ -76,31 +117,9 @@ export const AlbumGrid = ({ albums, onDeleteAlbum, onUpdateTitle, onCreateAlbum 
                 </Button>
               </div>
             ) : (
-              <>
-                <h3 className="font-medium text-xs truncate flex-1" title={album.title}>
-                  {album.title}
-                </h3>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                      <MoreHorizontal size={14} />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => startEditing(album)}>
-                      <Pencil size={14} className="mr-2" />
-                      Переименовать
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      className="text-destructive"
-                      onClick={() => onDeleteAlbum(album.id)}
-                    >
-                      <Trash2 size={14} className="mr-2" />
-                      Удалить
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
+              <h3 className="font-medium text-xs truncate" title={album.title}>
+                {album.title}
+              </h3>
             )}
           </div>
         </div>

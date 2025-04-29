@@ -7,9 +7,11 @@ interface PhotoGridProps {
   photos: Photo[];
   onDeletePhoto: (id: string) => void;
   photoGap: number;
+  photoSize: number;
 }
 
-export const PhotoGrid = ({ photos, onDeletePhoto, photoGap }: PhotoGridProps) => {
+export const PhotoGrid = ({ photos, onDeletePhoto, photoGap, photoSize }: PhotoGridProps) => {
+  // Функция для определения класса отступов между фото
   const getGapClass = (gap: number) => {
     const gapMap: Record<number, string> = {
       0: "gap-0",
@@ -22,28 +24,40 @@ export const PhotoGrid = ({ photos, onDeletePhoto, photoGap }: PhotoGridProps) =
     return gapMap[gap] || "gap-2";
   };
 
+  // Функция для определения количества колонок в зависимости от размера фото
+  const getGridClass = (size: number) => {
+    // Для маленьких фото больше колонок, для больших меньше
+    const sizeMap: Record<number, string> = {
+      1: "grid-cols-6 md:grid-cols-8", // Очень маленькие фото
+      2: "grid-cols-5 md:grid-cols-7", // Маленькие фото
+      3: "grid-cols-4 md:grid-cols-6", // Средние фото (по умолчанию)
+      4: "grid-cols-3 md:grid-cols-5", // Большие фото
+      5: "grid-cols-2 md:grid-cols-4"  // Очень большие фото
+    };
+    return sizeMap[size] || "grid-cols-4 md:grid-cols-6";
+  };
+
   return (
     <div className="w-full">
       <div 
-        className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 ${getGapClass(photoGap)}`}
+        className={`grid ${getGridClass(photoSize)} ${getGapClass(photoGap)}`}
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
           gridAutoFlow: "dense"
         }}
       >
         {photos.map((photo) => {
-          // Задаем размер для разных ориентаций фото
-          const gridColumn = photo.orientation === "landscape" ? "span 2" : "span 1";
+          // Горизонтальные фото занимают 2 колонки
+          const spanColumns = photo.orientation === "landscape" ? 2 : 1;
           
           return (
             <div 
               key={photo.id} 
               className="relative group overflow-hidden border rounded-sm"
               style={{ 
-                gridColumn,
+                gridColumn: `span ${spanColumns}`,
                 aspectRatio: photo.orientation === "portrait" ? "2/3" : "3/2",
-                minHeight: "150px"
+                minHeight: "120px"
               }}
             >
               <div className="relative h-full w-full">
@@ -52,9 +66,11 @@ export const PhotoGrid = ({ photos, onDeletePhoto, photoGap }: PhotoGridProps) =
                   alt={photo.title} 
                   className="w-full h-full object-cover"
                 />
+                {/* Белая полоса с подписью */}
                 <div className="absolute bottom-0 left-0 right-0 bg-white/80 p-1">
                   <p className="text-xs truncate text-black" title={photo.title}>{photo.title}</p>
                 </div>
+                {/* Кнопка удаления */}
                 <Button
                   variant="destructive"
                   size="icon"
